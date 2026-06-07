@@ -1,0 +1,266 @@
+### Variables
+@baseUrl = http://localhost:5555
+# Utilisateurs du seed (V5) : 1=Alice 2=Bob 3=Clara 4=David 5=Emma 6=Florian
+@alice = 1
+@bob = 2
+@clara = 3
+# Identifiant de conversation renvoyé par le POST ci-dessous (à ajuster).
+@conversationId = 1
+# Identifiant d'un message (pour tester réponse + pagination "before").
+@messageId = 1
+
+### ═════════════════════════════════════════════
+### POST /conversations — Créer une conversation (Alice → Bob)
+### → 201 si nouvelle : { id, otherParticipantId, lastMessage: null }
+### ═════════════════════════════════════════════
+
+POST {{baseUrl}}/conversations
+Content-Type: application/json
+x-requesting-user-id: {{alice}}
+
+{
+  "targetUserId": {{bob}}
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations — Idempotence : rappel avec la même paire
+### → 200, renvoie la conversation existante (pas de doublon)
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations
+Content-Type: application/json
+x-requesting-user-id: {{alice}}
+
+{
+  "targetUserId": {{bob}}
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations — Idempotence indépendante de l'ordre (Bob → Alice)
+### → 200, même conversation que ci-dessus
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations
+Content-Type: application/json
+x-requesting-user-id: {{bob}}
+
+{
+  "targetUserId": {{alice}}
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations — Conversation avec soi-même → 400
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations
+Content-Type: application/json
+x-requesting-user-id: {{alice}}
+
+{
+  "targetUserId": {{alice}}
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations — Utilisateur cible inexistant → 404
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations
+Content-Type: application/json
+x-requesting-user-id: {{alice}}
+
+{
+  "targetUserId": 999
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations — Payload invalide (targetUserId manquant) → 400
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations
+Content-Type: application/json
+x-requesting-user-id: {{alice}}
+
+{
+}
+
+###
+
+### ═════════════════════════════════════════════
+### GET /conversations — Lister MES conversations (Alice)
+### → 200 : [{ id, otherParticipantId, lastMessage }]  trié par activité récente
+### ═════════════════════════════════════════════
+
+GET {{baseUrl}}/conversations
+x-requesting-user-id: {{alice}}
+
+###
+
+### ─────────────────────────────────────────────
+### GET /conversations — Lister les conversations de Bob
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/conversations
+x-requesting-user-id: {{bob}}
+
+###
+
+### ═════════════════════════════════════════════
+### POST /conversations/:id/messages — Envoyer un message (Alice)
+### → 201 : { id, conversationId, authorId, content, responseToMessageId, createdAt }
+### ═════════════════════════════════════════════
+
+POST {{baseUrl}}/conversations/{{conversationId}}/messages
+Content-Type: application/json
+x-requesting-user-id: {{alice}}
+
+{
+  "content": "Salut Bob !"
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations/:id/messages — Message simple de Bob
+### (pas de responseToMessageId → response_to_message_id = null, c'est normal)
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations/{{conversationId}}/messages
+Content-Type: application/json
+x-requesting-user-id: {{bob}}
+
+{
+  "content": "Salut Alice, ça va ?"
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations/:id/messages — Répondre à un message précis
+### Seule cette requête envoie responseToMessageId → le message créé aura
+### response_to_message_id = {{messageId}}. Le message cité doit appartenir
+### à la même conversation (sinon 400).
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations/{{conversationId}}/messages
+Content-Type: application/json
+x-requesting-user-id: {{alice}}
+
+{
+  "content": "Oui super, et toi ?",
+  "responseToMessageId": {{messageId}}
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations/:id/messages — Contenu vide → 400
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations/{{conversationId}}/messages
+Content-Type: application/json
+x-requesting-user-id: {{alice}}
+
+{
+  "content": ""
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations/:id/messages — Non-participant (Clara) → 403
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations/{{conversationId}}/messages
+Content-Type: application/json
+x-requesting-user-id: {{clara}}
+
+{
+  "content": "Je m'incruste"
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /conversations/:id/messages — Conversation inexistante → 404
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/conversations/999/messages
+Content-Type: application/json
+x-requesting-user-id: {{alice}}
+
+{
+  "content": "Personne ?"
+}
+
+###
+
+### ═════════════════════════════════════════════
+### GET /conversations/:id/messages — 20 derniers messages (Alice)
+### ═════════════════════════════════════════════
+
+GET {{baseUrl}}/conversations/{{conversationId}}/messages
+x-requesting-user-id: {{alice}}
+
+###
+
+### ─────────────────────────────────────────────
+### GET /conversations/:id/messages — Limite personnalisée
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/conversations/{{conversationId}}/messages?limit=5
+x-requesting-user-id: {{alice}}
+
+###
+
+### ─────────────────────────────────────────────
+### GET /conversations/:id/messages — Remonter le fil (curseur "before")
+### → les messages immédiatement plus anciens que {{messageId}}
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/conversations/{{conversationId}}/messages?limit=20&before={{messageId}}
+x-requesting-user-id: {{alice}}
+
+###
+
+### ─────────────────────────────────────────────
+### GET /conversations/:id/messages — Non-participant (Clara) → 403
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/conversations/{{conversationId}}/messages
+x-requesting-user-id: {{clara}}
+
+###
+
+### ─────────────────────────────────────────────
+### GET /conversations/:id/messages — Conversation inexistante → 404
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/conversations/999/messages
+x-requesting-user-id: {{alice}}
+
+###
+
+### ═════════════════════════════════════════════
+### WebSocket (Socket.IO) — non testable via .http
+### ═════════════════════════════════════════════
+### Le temps réel se teste avec un client Socket.IO. Exemple Node :
+###
+###   const { io } = require('socket.io-client');
+###   const alice = io('http://localhost:5555/chat', { auth: { userId: 1 } });
+###   const bob   = io('http://localhost:5555/chat', { auth: { userId: 2 } });
+###   bob.on('message:new', (msg) => console.log('Bob reçoit :', msg));
+###   // Auto-join des rooms à la connexion ; puis :
+###   alice.emit('send', { conversationId: 1, content: 'Hello en live !' });
+###
+### Tout message créé (via cet event WS OU via POST REST ci-dessus) est diffusé
+### en `message:new` à l'autre participant connecté.

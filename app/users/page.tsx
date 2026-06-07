@@ -83,7 +83,12 @@ export default async function UsersPage({
 
         {createdId ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
-            Utilisateur créé. Id: {createdId}
+            <div>Utilisateur créé. Id: {createdId}</div>
+            <div className="mt-2">
+              <Link className="underline" href={`/users/${createdId}`}>
+                Voir le profil
+              </Link>
+            </div>
           </div>
         ) : null}
 

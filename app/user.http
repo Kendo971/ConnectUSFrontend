@@ -1,0 +1,72 @@
+### Variables
+@baseUrl = http://localhost:5555
+@adminUserId = 1
+
+### ─────────────────────────────────────────────
+### GET /users/:id — Récupérer un utilisateur par ID
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/users/1
+
+###
+
+### ─────────────────────────────────────────────
+### GET /users/search — Rechercher par prénom et nom
+### ─────────────────────────────────────────────
+
+GET {{baseUrl}}/users/search?firstName=Alice&lastName=Martin
+
+###
+
+### ─────────────────────────────────────────────
+### POST /users — Créer un utilisateur (sans droits admin)
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/users
+Content-Type: application/json
+x-requesting-user-id: {{adminUserId}}
+
+{
+  "firstName": "Jean",
+  "lastName": "Dupont",
+  "email": "jean.dupont@connectus.fr",
+  "passwordHash": "$2b$10$examplehashedpassword",
+  "statusInSchool": "STUDENT",
+  "studentClass": "M1",
+  "isAdmin": false,
+  "phoneNumber": "0612345678"
+}
+
+###
+
+### ─────────────────────────────────────────────
+### POST /users — Créer un utilisateur avec droits admin
+### (nécessite que x-requesting-user-id soit admin)
+### ─────────────────────────────────────────────
+
+POST {{baseUrl}}/users
+Content-Type: application/json
+x-requesting-user-id: {{adminUserId}}
+
+{
+  "firstName": "Agathe",
+  "lastName": "Dupont",
+  "email": "marie.admin@connectus.fr",
+  "passwordHash": "$2b$10$examplehashedpassword",
+  "statusInSchool": "TEACHER",
+  "isAdmin": true,
+  "phoneNumber": "0698765432"
+}
+
+###
+
+### ─────────────────────────────────────────────
+### DELETE /users/:id — Supprimer un utilisateur
+### (nécessite que x-requesting-user-id soit admin)
+### ─────────────────────────────────────────────
+
+DELETE {{baseUrl}}/users/7
+x-requesting-user-id: {{adminUserId}}
+
+###
+
