@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
 import { clearIdentity, getIdentity } from "../lib/identity";
+import { useCall } from "../lib/call/call-context";
+import { CallBar } from "../components/CallBar";
 
 type Conversation = {
   id: number;
@@ -143,6 +145,7 @@ async function apiFetch(path: string, init: RequestInit & { requestingUserId: nu
 
 export default function ChatPage() {
   const router = useRouter();
+  const call = useCall();
   const [requestingUserId, setRequestingUserId] = useState<number | null>(null);
   const [myName, setMyName] = useState<string>("");
   const [targetUserId, setTargetUserId] = useState<number>(1);
@@ -429,6 +432,14 @@ export default function ChatPage() {
     el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
+  // Téléportation : un appel devenu actif sélectionne sa conversation.
+  useEffect(() => {
+    if (call.status !== "active") return;
+    if (call.activeConversationId === null) return;
+    if (call.activeConversationId === selectedConversationId) return;
+    setSelectedConversationId(call.activeConversationId);
+  }, [call.status, call.activeConversationId, selectedConversationId]);
+
   const displayName = selectedConversation
     ? selectedConversation.otherParticipantName
     : "Messagerie";
@@ -634,7 +645,9 @@ export default function ChatPage() {
                     goUnavailable("Appel");
                     return;
                   }
-                  router.push(`/call/${selectedConversationId}?userId=${encodeURIComponent(String(requestingUserId))}`);
+                  call.startCall(selectedConversationId).catch((e) =>
+                    alert(String(e?.message ?? e)),
+                  );
                 }}
               >
                 <Icon name="phone" />
@@ -665,6 +678,11 @@ export default function ChatPage() {
               </button>
             </div>
           </header>
+
+          {(call.status === "ringing" || call.status === "active") &&
+          call.activeConversationId === selectedConversationId ? (
+            <CallBar />
+          ) : null}
 
           <div className="relative flex min-h-0 flex-1 flex-col">
             <div className="flex-1 overflow-auto px-5 py-5" ref={listRef}>
