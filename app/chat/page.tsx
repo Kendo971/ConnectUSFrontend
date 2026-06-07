@@ -4,10 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { io, Socket } from "socket.io-client";
+import { clearIdentity, getIdentity } from "../lib/identity";
 
 type Conversation = {
   id: number;
   otherParticipantId: number;
+  otherParticipantName: string;
   lastMessage: null | {
     id: number;
     authorId: number;
@@ -20,6 +22,7 @@ type Message = {
   id: number;
   conversationId: number;
   authorId: number;
+  authorName: string;
   content: string;
   responseToMessageId?: number | null;
   createdAt: string;
@@ -140,8 +143,9 @@ async function apiFetch(path: string, init: RequestInit & { requestingUserId: nu
 
 export default function ChatPage() {
   const router = useRouter();
-  const [requestingUserId, setRequestingUserId] = useState<number>(1);
-  const [targetUserId, setTargetUserId] = useState<number>(2);
+  const [requestingUserId, setRequestingUserId] = useState<number | null>(null);
+  const [myName, setMyName] = useState<string>("");
+  const [targetUserId, setTargetUserId] = useState<number>(1);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [logoSrc, setLogoSrc] = useState("/connectus-logo.png");
@@ -196,6 +200,7 @@ export default function ChatPage() {
   }
 
   async function createConversation() {
+    if (requestingUserId === null) return;
     const res = await apiFetch("/api/conversations", {
       requestingUserId,
       method: "POST",
@@ -214,7 +219,39 @@ export default function ChatPage() {
     await loadMessages(requestingUserId, conversation.id);
   }
 
+  // « Nouvelle conversation » : cible l'utilisateur suivant par incrément, en
+  // sautant son propre id, et gère la fin de course (id inexistant → 404).
+  async function newConversation() {
+    if (requestingUserId === null) return;
+
+    let candidate = targetUserId;
+    if (candidate === requestingUserId) candidate += 1;
+
+    const res = await apiFetch("/api/conversations", {
+      requestingUserId,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targetUserId: candidate }),
+    });
+
+    if (res.status === 404) {
+      alert("Plus d'utilisateur disponible.");
+      return;
+    }
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Création conversation impossible (${res.status})${text ? `: ${text}` : ""}`);
+    }
+
+    setTargetUserId(candidate + 1);
+    const conversation = (await res.json()) as Conversation;
+    await loadConversations(requestingUserId);
+    setSelectedConversationId(conversation.id);
+    await loadMessages(requestingUserId, conversation.id);
+  }
+
   async function sendMessageRest() {
+    if (requestingUserId === null) return;
     if (!selectedConversationId) return;
 
     const res = await apiFetch(`/api/conversations/${selectedConversationId}/messages`, {
@@ -234,6 +271,7 @@ export default function ChatPage() {
   }
 
   async function sendMessageWs() {
+    if (requestingUserId === null) return;
     if (!socketRef.current) {
       throw new Error("Connexion temps réel indisponible.");
     }
@@ -287,10 +325,22 @@ export default function ChatPage() {
   }
 
   useEffect(() => {
+    // Charge l'identité connectée ; à défaut, redirige vers le login.
+    const identity = getIdentity();
+    if (!identity) {
+      router.replace("/login");
+      return;
+    }
+    setRequestingUserId(identity.userId);
+    setMyName(identity.name);
+  }, [router]);
+
+  useEffect(() => {
     selectedConversationIdRef.current = selectedConversationId;
   }, [selectedConversationId]);
 
   useEffect(() => {
+    if (requestingUserId === null) return;
     setMessages([]);
     setSelectedConversationId(null);
     setConversations([]);
@@ -307,6 +357,7 @@ export default function ChatPage() {
   }, [conversations, selectedConversationId]);
 
   useEffect(() => {
+    if (requestingUserId === null) return;
     if (selectedConversationId) {
       loadMessages(requestingUserId, selectedConversationId).catch((e) => {
         console.error(e);
@@ -315,6 +366,7 @@ export default function ChatPage() {
   }, [requestingUserId, selectedConversationId]);
 
   useEffect(() => {
+    if (requestingUserId === null) return;
     const url = `${backendWsBase()}/chat`;
     const socket = io(url, {
       auth: { userId: requestingUserId },
@@ -377,7 +429,9 @@ export default function ChatPage() {
     el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
-  const displayName = selectedConversation ? `Utilisateur ${selectedConversation.otherParticipantId}` : "Messagerie";
+  const displayName = selectedConversation
+    ? selectedConversation.otherParticipantName
+    : "Messagerie";
 
   const goUnavailable = (name: string) => {
     router.push(`/unavailable?feature=${encodeURIComponent(name)}`);
@@ -390,6 +444,14 @@ export default function ChatPage() {
     setEmojiOpen(false);
     requestAnimationFrame(() => inputRef.current?.focus());
   };
+
+  if (requestingUserId === null) {
+    return (
+      <div className="flex h-[100svh] w-full items-center justify-center bg-[#0f1623] text-zinc-400">
+        Chargement…
+      </div>
+    );
+  }
 
   return (
     <div className="h-[100svh] w-full bg-[#0f1623] text-zinc-100">
@@ -486,7 +548,7 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={() => {
-                  createConversation().catch((e) => alert(String(e.message ?? e)));
+                  newConversation().catch((e) => alert(String(e.message ?? e)));
                 }}
                 className="w-full rounded-md bg-white/5 px-3 py-2 text-left text-sm hover:bg-white/10"
               >
@@ -514,7 +576,7 @@ export default function ChatPage() {
                         <div className="h-8 w-8 rounded-full bg-white/10" />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium text-zinc-100">
-                            Utilisateur {c.otherParticipantId}
+                            {c.otherParticipantName}
                           </div>
                           <div className="truncate text-xs text-zinc-400">
                             {c.lastMessage?.content ?? "Aucun message"}
@@ -539,7 +601,7 @@ export default function ChatPage() {
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-white/10" />
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">Moi</div>
+                  <div className="truncate text-sm font-medium">{myName || "Moi"}</div>
                   <div className="text-xs text-zinc-400">Utilisateur {requestingUserId}</div>
                 </div>
               </div>
@@ -625,7 +687,7 @@ export default function ChatPage() {
                       >
                         <div className="flex items-center justify-between gap-4">
                           <div className={`text-sm font-medium ${mine ? "text-emerald-300" : "text-emerald-300"}`}>
-                            {mine ? "Moi" : `Utilisateur ${m.authorId}`}
+                            {mine ? "Moi" : m.authorName}
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="text-xs text-zinc-400">{formatTime(m.createdAt)}</div>
@@ -769,20 +831,24 @@ export default function ChatPage() {
               </div>
 
               <div className="mt-6 grid gap-4">
-                <label className="grid gap-1 text-sm text-zinc-200">
-                  Mon utilisateur (userId)
-                  <input
-                    value={requestingUserId}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw.trim() === "") return;
-                      const n = Number(raw);
-                      if (!Number.isFinite(n) || n <= 0) return;
-                      setRequestingUserId(n);
-                    }}
-                    className="h-11 rounded-md border border-white/10 bg-[#0f1623] px-3 text-zinc-100"
-                  />
-                </label>
+                <div className="grid gap-1 text-sm text-zinc-200">
+                  Connecté en tant que
+                  <div className="flex h-11 items-center justify-between rounded-md border border-white/10 bg-[#0f1623] px-3">
+                    <span className="text-zinc-100">
+                      {myName} (#{requestingUserId})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        clearIdentity();
+                        router.replace("/login");
+                      }}
+                      className="rounded-md px-2 py-1 text-xs text-rose-200 hover:bg-white/5"
+                    >
+                      Se déconnecter
+                    </button>
+                  </div>
+                </div>
 
                 <label className="grid gap-1 text-sm text-zinc-200">
                   Interlocuteur (targetUserId)
