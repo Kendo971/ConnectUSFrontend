@@ -49,7 +49,7 @@ export default async function UserProfilePage({
             <Link className="text-sm text-zinc-700 underline dark:text-zinc-300" href="/users">
               Créer un utilisateur
             </Link>
-            <Link className="text-sm text-zinc-700 underline dark:text-zinc-300" href="/">
+            <Link className="text-sm text-zinc-700 underline dark:text-zinc-300" href="/public">
               Accueil
             </Link>
           </div>
