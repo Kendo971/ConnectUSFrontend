@@ -325,6 +325,14 @@ export default function ChatPage() {
 
     socket.on("connect", () => {
       setSocketConnected(true);
+      // Catch-up : à la (re)connexion, recharge la conversation ouverte pour
+      // rattraper les messages arrivés pendant une éventuelle coupure réseau.
+      const openConversationId = selectedConversationIdRef.current;
+      if (openConversationId !== null) {
+        loadMessages(requestingUserId, openConversationId).catch((e) => {
+          console.error(e);
+        });
+      }
     });
 
     socket.on("message:new", (msg: Message) => {
