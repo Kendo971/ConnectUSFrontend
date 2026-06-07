@@ -559,7 +559,13 @@ export default function ChatPage() {
                 type="button"
                 className="rounded-md p-2 hover:bg-white/5"
                 aria-label="Appel"
-                onClick={() => goUnavailable("Appel")}
+                onClick={() => {
+                  if (!selectedConversationId) {
+                    goUnavailable("Appel");
+                    return;
+                  }
+                  router.push(`/call/${selectedConversationId}?userId=${encodeURIComponent(String(requestingUserId))}`);
+                }}
               >
                 <Icon name="phone" />
               </button>
@@ -759,7 +765,13 @@ export default function ChatPage() {
                   Mon utilisateur (userId)
                   <input
                     value={requestingUserId}
-                    onChange={(e) => setRequestingUserId(Number(e.target.value || 0))}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw.trim() === "") return;
+                      const n = Number(raw);
+                      if (!Number.isFinite(n) || n <= 0) return;
+                      setRequestingUserId(n);
+                    }}
                     className="h-11 rounded-md border border-white/10 bg-[#0f1623] px-3 text-zinc-100"
                   />
                 </label>
@@ -768,7 +780,13 @@ export default function ChatPage() {
                   Interlocuteur (targetUserId)
                   <input
                     value={targetUserId}
-                    onChange={(e) => setTargetUserId(Number(e.target.value || 0))}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw.trim() === "") return;
+                      const n = Number(raw);
+                      if (!Number.isFinite(n) || n <= 0) return;
+                      setTargetUserId(n);
+                    }}
                     className="h-11 rounded-md border border-white/10 bg-[#0f1623] px-3 text-zinc-100"
                   />
                 </label>
