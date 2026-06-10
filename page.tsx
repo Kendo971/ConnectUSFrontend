@@ -64,10 +64,10 @@ async function createUser(formData: FormData): Promise<void> {
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams?: { createdId?: string };
+  searchParams?: Promise<{ createdId?: string }>;
 }) {
-  const createdId = searchParams?.createdId;
-  
+  const resolvedSearchParams = await searchParams;
+  const createdId = resolvedSearchParams?.createdId;
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-10 font-sans dark:bg-black">
