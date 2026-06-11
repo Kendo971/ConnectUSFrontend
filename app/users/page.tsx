@@ -42,18 +42,26 @@ async function createUser(formData: FormData): Promise<void> {
         : undefined,
   };
 
-  const res = await fetch(`${baseUrl}/users`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-requesting-user-id": String(requestingUserId),
-    },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}/users`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-requesting-user-id": String(requestingUserId),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    redirect(`/users?error=${encodeURIComponent("Backend injoignable: " + msg)}`);
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`Create user failed: ${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`);
+    redirect(
+      `/users?error=${encodeURIComponent(`${res.status} ${res.statusText}${text ? ` - ${text}` : ""}`)}`,
+    );
   }
 
   const created = (await res.json()) as { id?: number };
@@ -64,10 +72,11 @@ async function createUser(formData: FormData): Promise<void> {
 export default async function UsersPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ createdId?: string }>;
+  searchParams?: Promise<{ createdId?: string; error?: string }>;
 }) {
   const resolvedSearchParams = await searchParams;
   const createdId = resolvedSearchParams?.createdId;
+  const error = resolvedSearchParams?.error;
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-10 font-sans dark:bg-black">
@@ -80,6 +89,12 @@ export default async function UsersPage({
             Retour accueil
           </Link>
         </div>
+
+        {error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-100">
+            Erreur lors de la création : {error}
+          </div>
+        ) : null}
 
         {createdId ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100">
